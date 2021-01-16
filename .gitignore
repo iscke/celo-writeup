@@ -1,0 +1,5 @@
+.celo-secret
+.secret
+node_modules
+package_lock.json
+truffletest/build/contracts

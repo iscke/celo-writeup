@@ -1,0 +1,165 @@
+* Celo for Eth devs feedback
+
+** Repo structure
+Included in this repo is (most of) my working directory from when I was doing this exercise. Excluded are my docker-related files, secrets, any executables or libraries, and anything I did in the browser / Remix IDE.
+Git history for the helloCelo and graphcontracts repos hasn't been included. For hellocelo, it should be reasonably obvious to see what I've changed. For graphcontracts, I've included two diff files, diff1.diff and diff2.diff. These show the changes I made in my first (unsuccessful) and second (successful) attempts to deploy the Graph Protocol's contracts on Celo. (Note that diff2 should be applied over diff1.)
+
+** Process
+   
+I began by trying to set up a local environment for development and testing applications.
+
+*** Local cli setup
+
+I created and funded a wallet on the Alfajores testnet through the instructions on [[https://docs.celo.org/v/master/getting-started/alfajores-testnet/faucet][this page]] (using the Celo client).
+This worked smoothly, although I felt the page could have had more information about how to use the Celo client outside of the one command it listed. I was able to use the alfajores network explorer to quickly and easily see the status of my account, to verify the account creation and the faucet had worked properly.
+
+Next, I tried to start my own node and connect to it using the ~celocli~ tool.
+Installing and starting a node in a docker container (using the instructions [[https://docs.celo.org/v/master/getting-started/mainnet/running-a-full-node-in-mainnet][here]]) seemed to work, but the node's import logs were never printed for me.
+installing ~celocli~ in a local directory also worked smoothly. installing it globally led to many ~npm~ errors relating to file permissions that i haven't been able to diagnose or fix, but I suspect that's the fault of my system and npm, not Celo.
+However, for my purposes, using a local install of ~celocli~ through ~npx~ worked fine.
+
+The ~celocli~ tool appeared to be able to connect to my node, and I could see its sync status:
+#+BEGIN_SRC bash
+; npx celocli node:synced
+false
+#+END_SRC
+
+However, while this was useful, it wasn't a lot of information towards my node's status, and none of the other ~celocli node~ commands seemed to give anything else. Celo's developer docs talk about its compatibility with Ethereum quite a bit, so I tried using ~geth~ to connect to it to see its status, which seemed to work:
+#+BEGIN_SRC bash
+; sudo geth attach ipc:/home/el/celo/geth.ipc 
+Welcome to the Geth JavaScript console!
+
+instance: celo/v1.1.0-stable/linux-amd64/go1.13.15
+coinbase: 0x7e774cbd1400245a8d0b7d35725a908b1c521454
+at block: 39295 (Sun Jul 19 2020 09:58:20 GMT+0930 (ACST))
+ datadir: /root/.celo
+ modules: admin:1.0 debug:1.0 eth:1.0 istanbul:1.0 les:1.0 miner:1.0 net:1.0 personal:1.0 rpc:1.0 txpool:1.0 web3:1.0
+
+To exit, press ctrl-d
+> eth.syncing
+{
+  currentBlock: 44126,
+  highestBlock: 3051488,
+  knownStates: 0,
+  pulledStates: 0,
+  startingBlock: 0
+}
+#+END_SRC
+(I was wondering at this point if I could just open the ~geth~ instance running in the container directly, but the docs I had didn't really explain what else could be done with the docker image, and I couldn't figure out anything from the example commands they gave.)
+
+This seemed to work fine, and gave me a more detailed status report on my node. From this, I decided that running a full node myself would probably more time and resources than I had, so I gave up.
+(I later learned about Celo's Ultralight Sync mode through another guide - when I was trying to set up my local node, I had searched for something like this but didn't find it. It doesn't seem to be mentioned in many places, and the page itself is within some other, quite technical details on how the blockchain operates, which I think makes it much less likely for people to find.)
+
+Connecting ~celocli~ to Forno's node worked smoothly, although it did take me a bit of time and digging to find the page that listed the URLs for Forno's testnet node:
+#+BEGIN_SRC bash
+; npx celocli config:set --node https://alfajores-forno.celo-testnet.org
+; npx celocli account:balance 0x7E774CBd1400245A8d0B7D35725a908B1C521454
+All balances expressed in units of 10^-18.
+CELO: 5000000000000000000
+lockedCELO: 0
+cUSD: 10000000000000000000
+pending: 0
+#+END_SRC
+
+*** Browser Remix IDE setup
+
+Setting up an online environment, using MetaMask and the Remix IDE was also relatively smooth, mostly thanks to Celo's compatibility with existing Ethereum tooling.
+
+Adding the Celo network to MetaMask appears to work perfectly fine, allowing for signing transactions and tracking balance properly. As far as I can tell, the chain IDs used for Celo's networks aren't obviously visible anywhere, however, and I needed to look through Celo's source to find them.
+
+I was also able to use the online Remix IDE to write and publish contracts. To do this, I had to add the Celo plugin to Remix. I didn't see this plugin mentioned in any of the Celo documents or guides that I read, and I only knew about it because I had seen it when previously using Remix. However, once the plugin was added, the IDE worked normally, and I was able to write and publish a test contract, using MetaMask to sign it. I could then see the published contract on the Celo blockchain explorer.
+
+(In hindsight, I'm not actually sure if MetaMask worked properly, since as I understand, keys derived by MetaMask would be done with Ethereum's key setup, and thus wouldn't be compatible with Celo. I think that having a page that clearly explains which parts of the Ethereum tooling will work with Celo would be useful to a lot of developers.)
+
+[[./imgs/remix1.png]]
+[[./imgs/remix2.png]]
+
+*** Local contractKit setup
+
+Using the javascript Celo SDK to create a transaction was also reasonably straightforward, both through following along with the [[https://docs.celo.org/developer-guide/start/hellocelo][example repo]] and through setting up my own project. With this, I was able to create a Celo transaction and send currency between two of my accounts. Using the SDK with Forno was straightfoward and didn't require any extra work or troubleshooting.
+
+#+BEGIN_SRC bash
+; node helloCello.js 
+0x6D8df2A24aF4C1BBccA52c40272687223b30Bb8A balance: 9999934021000000000
+Your account address: 0x6D8df2A24aF4C1BBccA52c40272687223b30Bb8A
+Your account balance: 9999934021000000000
+Transaction receipt: {
+ <snip>
+}
+Your new account balance: 9999910966999900000
+#+END_SRC
+
+*** Local Truffle setup
+
+For the most part, deploying a contract from my local environment using Truffle was straightforward. The only issue came when I tried to deploy the contract through Forno. At first, I assumed that since Celo was mostly compatible with Ethereum, I could simply target Forno the same way I would an Ethereum provider (like you would Infura). However, this is not the case, which led to some confusing errors before I realized (="Migrations" -- rlp: input string too short for common.Address, decoding into (types.Transaction)(types.txdata).Recipient.=). Following the information given in [[https://docs.celo.org/developer-guide/start/hello-contract-remote-node][this guide]] worked fine, though, and I was able to deploy a contract to the testnet using truffle.
+
+#+BEGIN_SRC bash
+; truffle migrate --network alfajores
+<snip>
+Summary
+=======
+> Total deployments:   1
+> Final cost:          0.00192378 ETH
+#+END_SRC
+
+** Deploying a larger set of contracts
+
+To further test deployment to Celo, I tried to deploy the contracts for [[https://github.com/graphprotocol/contracts][the Graph Protocol]]. I chose this app because it's reasonably large, I've had experience deploying this on Ethereum before, and because they use a custom set of deploy scripts using hardhat in place of something like truffle.
+
+Initially, I tried to deploy the contracts the same way I did with truffle - by changing any references to the Ethereum chain and Infura to the Celo chain and Forno. This led to the same problem I had with truffle, where the differences between Ethereum and Celo made everything fail. Unfortunately, unlike truffle, hardhat does not appear to support custom network providers, so I was not able to use Forno.
+
+Fortunately, by this point I had learned about Celo ultralight syncing, so I was able to set up and connect to a local node. Using this local node, The Graph's deploy scripts worked properly, and I was able to deploy and interact with its contracts.
+
+#+BEGIN_SRC bash
+; npm run deploy-alfajores
+<snip>
+Preparing contracts on chain id: 44787                                                                              23:34:49
+Connected Wallet: address=0x7E774CBd1400245A8d0B7D35725a908B1C521454 nonce=32 balance=9.9853342975                  23:34:49
+<snip>
+>>> Contracts deployment                                                                                            23:34:49
+
+= Deploy: GraphProxyAdmin                                                                                           23:34:49
+Checking for valid GraphProxyAdmin contract...                                                                      23:34:49
+> Deploy GraphProxyAdmin, txHash: 0xb7e24641ab427a4dc7c6b4c100e3f19d431a95fa696008ffa0b17c78e72ca17d                23:34:49
+= CreationCodeHash:  0x26a6f47e71ad242e264768571ce7223bf5a86fd0113ab6cb8200f65820232904                             23:34:54
+= RuntimeCodeHash:  0xd5330527cfb09df657adc879d8ad704ce6b8d5917265cabbd3eb073d1399f122                              23:34:54
+✔ GraphProxyAdmin has been deployed to address: 0x88E23C81449679E5d229406eC9EaCa149a240f88                          23:34:54
+<snip>
+✔ All done!                                                                                                         23:40:34
+✔ Sent 37 transactions & spent Ξ 0.014775875                                                                        23:40:34
+#+END_SRC
+
+I could now see these contracts on the Celo explorer, see their tokens, and interact with the contracts. ([[https://alfajores-blockscout.celo-testnet.org/address/0x8c5d2166d6400fdff732be8ae1640727ba963665/transactions]])
+
+[[./imgs/deployed.png]]
+
+** Conclusions
+
+*** I really liked...
+- Compatibility with Ethereum tooling is nice for development, as there's a lot of mature tooling for it, and Solidity is a great language for contracts.
+- (Though I had somewhat limited experience with it) The ~contractkit~ package seems quite well designed and easy to use.
+- Ultrafast sync for local nodes is very nice for quickly getting a working environment, possibly even easier than a third party service like Forno
+- Most of the guides have quite easy to follow steps on how to accomplish specific, albeit common, tasks.
+- The Celo specific tools (~celocli~, local celo nodes, etc) are all reasonably straightforward and smooth to install and set up (bizarre npm errors notwithstanding).
+- For situations where it's supported, Forno is easy to use and seems to work well.
+
+*** I had a hard time with...
+- The documentation is laid out in a somewhat confusing way - it's not always obvious where to find things, and I feel like there's a lot of information that could be made more obvious (eg, the existence of ultrafast sync, the processes for using Ethereum tooling with Celo, the addresses and network IDs for the different chains, etc).
+  + Celo's compatibility with Ethereum is mentioned in quite a few places, but it's never really explained how these differences impact the end user, and what you need to do differently as a developer (for example, not being able to use web APIs like Forno the same way). The [[https://docs.celo.org/developer-guide/celo-for-eth-devs][Celo for Ethereum Developers]] page does exist, but it seems to mostly focus on technical aspects, without describing what developers need to do as a result of Celo's changes.
+  + The API details are somewhat hard to find - the network pages don't give network IDs, which are needed for some tools, and some of the develop guides mention Forno while only giving the address for mainnet, making it harder to find and use the correct network. In general, a lot of the information that devs might want to find quickly (details about interfacing with the network) seem to be scattered around the docs, making them hard to find.
+- Most of the guides are quite specialized to a single task, and they don't go into much depth as to what each step is doing on the broader scale, just what the specific command does.
+- A lot of Ethereum tooling works well with Celo, but requires some setup or config (eg, using MetaMask as a Celo wallet, using the Remix IDE with the plugin, the truffle config required to make it work using Forno). I think that it would greatly improve the initial developer experience to have more information about these in the Celo developer docs.
+ 
+*** I encountered these errors along the way...
+- Having to use a custom network provider for Celo (or a local node) made deploying existing Ethereum apps harder.
+- A lot of the tutorials give a template file and then have the user add code to functions that are already present within the structure - this makes them a lot more confusing and harder to follow if the user isn't aware of the template file, or if the user isn't directly following along.
+
+** General Impression
+
+*** How long did this take you?
+
+This process, from initially reading the Celo developer docs to deploying the Graph Protocol's contracts onto Celo took around 5 hours. This was probably comparable to the time it took me to reach this stage with Ethereum, although this time I obviously had more experience with blockchain and Ethereum-like tech as a whole.
+
+*** How could this exercise be improved?
+
+I think this exercise could be improved with a more structured set of things to test - there were a lot of parts of Celo that I only found midway through doing this through pure chance that I think would have been interesting to explore further. There were quite a few things that I never happened to interact with too, including things like the mobile wallet integration, and the Celo JS SDK in the browser. Having a more structured set of things to do could also provider an easier and clearer way to explain and demonstrate the differences between Celo and Ethereum, for existing Ethereum devs that are trying to learn the platform.
